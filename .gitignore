@@ -1,0 +1,5 @@
+tmpclaude-*
+*.presets.json
+CLAUDE.md
+.claude/
+__pref.lua

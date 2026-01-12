@@ -1,0 +1,17 @@
+{
+  "name": "layer-export-presets",
+  "displayName": "Layer Export Presets",
+  "description": "Export sprites with customizable layer visibility presets. Configure which layers are visible for each export and batch export with one click.",
+  "version": "1.0.0",
+  "author": {
+    "name": "User"
+  },
+  "publisher": "user",
+  "license": "MIT",
+  "categories": ["Scripts"],
+  "contributes": {
+    "scripts": [
+      { "path": "./main.lua" }
+    ]
+  }
+}

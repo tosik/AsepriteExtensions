@@ -2,6 +2,25 @@
 
 A collection of plugins for [Aseprite](https://www.aseprite.org/), the animated sprite editor.
 
+## Installation
+
+### For Users
+
+1. Download or clone this repository
+2. Copy the plugin folder to your Aseprite extensions directory:
+   - **Windows**: `C:\Users\<username>\AppData\Roaming\Aseprite\extensions\`
+3. Restart Aseprite
+
+### For Developers
+
+Create a junction link for live development:
+
+```powershell
+New-Item -ItemType Junction -Path 'C:\Users\<username>\AppData\Roaming\Aseprite\extensions\<plugin-name>' -Target 'C:\path\to\<plugin-name>'
+```
+
+---
+
 ## Plugins
 
 ### Layer Export Presets
@@ -13,47 +32,122 @@ Configure layer visibility patterns and batch export images with one click.
 - Save multiple layer visibility presets per sprite
 - Export all presets as images with a single button
 - Preview presets before exporting
-- Auto-backup presets to JSON files (recovers after plugin reload)
+- Auto-backup presets to JSON files
 - Import/Export presets for sharing or migration
-
-#### Installation
-
-1. Download or clone this repository
-2. Copy the `layer-export-presets` folder to your Aseprite extensions directory:
-   - **Windows**: `C:\Program Files (x86)\Steam\steamapps\common\Aseprite\data\extensions\`
-   - **macOS**: `/Applications/Aseprite.app/Contents/Resources/data/extensions/`
-3. Restart Aseprite
-
-For development, you can create a symbolic link (junction on Windows):
-
-```powershell
-# Windows (PowerShell)
-New-Item -ItemType Junction -Path 'C:\Program Files (x86)\Steam\steamapps\common\Aseprite\data\extensions\layer-export-presets' -Target 'C:\path\to\layer-export-presets'
-```
 
 #### Usage
 
-1. Open a sprite and save it (the plugin requires a saved file)
+1. Open a sprite and save it
 2. Go to **File > Layer Export Presets > Manage Presets...**
-3. Click **Add New** to create a preset:
-   - Enter a **Preset Name** (e.g., "Character Only")
-   - Enter an **Export Filename** (e.g., "character.png")
-   - Check/uncheck layers to set visibility
-   - Click **Save**
-4. Repeat to create more presets
-5. Click **Export All Presets** to export all presets as images
+3. Click **Add New** to create a preset
+4. Set layer visibility and export filename
+5. Click **Export All Presets** to export
 
 #### Quick Export
 
-Use **File > Layer Export Presets > Quick Export All** to export all presets without opening the manager dialog. You can assign a keyboard shortcut to this command.
+Use **File > Layer Export Presets > Quick Export All** for fast export without opening the dialog.
 
-#### Backup & Migration
+---
 
-Presets are automatically saved to a `.presets.json` file next to your sprite. If you move your sprite to another location:
+### Outline Tool
 
-1. Copy the `.presets.json` file along with the sprite
-2. Open the sprite and go to **Manage Presets...**
-3. Click **Import from JSON** and select the `.presets.json` file
+Draw outlines around non-transparent pixels.
+
+#### Features
+
+- Inner outline (inside the sprite boundary)
+- Outer outline (around the sprite)
+- Uses the closest black color in the palette (for indexed mode)
+- 4-directional only (no diagonal)
+
+#### Usage
+
+1. Select a layer with content
+2. Right-click on the cel in the timeline
+3. Select **Draw Outline...**
+4. Choose outline type and click Apply
+
+---
+
+### Outline Thinner
+
+Thin 2-pixel thick outlines to 1-pixel.
+
+#### Features
+
+- Detects and removes redundant outline pixels
+- Handles diagonal stair-step patterns
+- Handles 2x2 block patterns
+- Iterative thinning with configurable passes
+
+#### Usage
+
+1. Select a layer with outline
+2. Right-click on the cel in the timeline
+3. Select **Outline Thinner...**
+4. Adjust iterations and click Apply
+
+---
+
+### Mosaic Tool
+
+Apply pixelation/mosaic effect to selected pixels.
+
+#### Features
+
+- Configurable block size (2-32 pixels)
+- Works on selection or entire cel
+- Averages colors within each block
+
+#### Usage
+
+1. Optionally make a selection
+2. Right-click on the cel in the timeline
+3. Select **Mosaic...**
+4. Set block size and click Apply
+
+---
+
+### Color Reduction
+
+Merge similar colors within a distance threshold.
+
+#### Features
+
+- Live preview of color reduction
+- Adjustable distance threshold
+- Uses Union-Find algorithm for color grouping
+- Consolidates palette and remaps pixels
+
+#### Usage
+
+1. Convert sprite to Indexed mode first
+2. Go to **Sprite > Color Reduction...**
+3. Adjust threshold slider to preview
+4. Click Apply to confirm
+
+---
+
+### Palette Editor
+
+Edit indexed palette colors with live preview.
+
+#### Features
+
+- Visual color grid for selection
+- Full color picker integration
+- Live preview of color changes
+- Revert individual colors or all changes
+- Defaults to foreground color on open
+
+#### Usage
+
+1. Open an Indexed color mode sprite
+2. Go to **Sprite > Palette Editor...**
+3. Click a color to select, use color picker to edit
+4. Click Apply to confirm changes
+
+---
 
 ## License
 

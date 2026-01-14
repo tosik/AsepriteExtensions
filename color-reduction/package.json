@@ -1,0 +1,17 @@
+{
+  "name": "color-reduction",
+  "displayName": "Color Reduction",
+  "description": "Reduce colors by merging similar colors within a specified distance threshold.",
+  "version": "1.0.0",
+  "author": {
+    "name": "tosik"
+  },
+  "publisher": "tosik",
+  "license": "MIT",
+  "categories": ["Scripts"],
+  "contributes": {
+    "scripts": [
+      { "path": "./main.lua" }
+    ]
+  }
+}

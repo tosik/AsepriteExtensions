@@ -1,0 +1,17 @@
+{
+  "name": "outline-tool",
+  "displayName": "Outline Tool",
+  "description": "Draw outline around non-transparent pixels on the selected layer.",
+  "version": "1.0.0",
+  "author": {
+    "name": "tosik"
+  },
+  "publisher": "tosik",
+  "license": "MIT",
+  "categories": ["Scripts"],
+  "contributes": {
+    "scripts": [
+      { "path": "./main.lua" }
+    ]
+  }
+}

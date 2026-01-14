@@ -1,0 +1,17 @@
+{
+  "name": "outline-thinner",
+  "displayName": "Outline Thinner",
+  "description": "Thin 2-pixel outlines to 1-pixel by removing redundant outline pixels.",
+  "version": "1.0.0",
+  "author": {
+    "name": "tosik"
+  },
+  "publisher": "tosik",
+  "license": "MIT",
+  "categories": ["Scripts"],
+  "contributes": {
+    "scripts": [
+      { "path": "./main.lua" }
+    ]
+  }
+}

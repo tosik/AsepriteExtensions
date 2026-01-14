@@ -50,38 +50,91 @@ local function applyPresetVisibility(sprite, preset)
     end
 end
 
--- Simple JSON encoder for presets
-local function encodeJSON(presets)
-    local result = "[\n"
-    for i, preset in ipairs(presets) do
-        result = result .. "  {\n"
-        result = result .. '    "name": "' .. (preset.name or "") .. '",\n'
-        result = result .. '    "exportName": "' .. (preset.exportName or "") .. '",\n'
-        result = result .. '    "layers": {\n'
+-- Sanitize presets: remove non-existent layers, add missing layers
+local function sanitizePresets(sprite, presets)
+    local allLayers = getAllLayers(sprite.layers)
+    local existingLayerNames = {}
+    for _, item in ipairs(allLayers) do
+        existingLayerNames[item.fullName] = item.layer.isVisible
+    end
+
+    for _, preset in ipairs(presets) do
+        local newLayers = {}
+
+        -- Keep only existing layers
+        for layerName, visible in pairs(preset.layers) do
+            if existingLayerNames[layerName] ~= nil then
+                newLayers[layerName] = visible
+            end
+        end
+
+        -- Add missing layers with visibility off by default
+        for layerName, _ in pairs(existingLayerNames) do
+            if newLayers[layerName] == nil then
+                newLayers[layerName] = false
+            end
+        end
+
+        preset.layers = newLayers
+    end
+
+    return presets
+end
+
+-- Escape string for JSON
+local function escapeJsonString(str)
+    if not str then return "" end
+    return str:gsub("\\", "\\\\"):gsub('"', '\\"')
+end
+
+-- Simple JSON encoder for sprite data (presets + outputDir)
+local function encodeJSON(data)
+    local result = "{\n"
+    result = result .. '  "outputDir": "' .. escapeJsonString(data.outputDir or "") .. '",\n'
+    result = result .. '  "presets": [\n'
+
+    for i, preset in ipairs(data.presets or {}) do
+        result = result .. "    {\n"
+        result = result .. '      "name": "' .. escapeJsonString(preset.name) .. '",\n'
+        result = result .. '      "exportName": "' .. escapeJsonString(preset.exportName) .. '",\n'
+        result = result .. '      "layers": {\n'
 
         local layerEntries = {}
-        for layerName, visible in pairs(preset.layers) do
-            table.insert(layerEntries, '      "' .. layerName .. '": ' .. tostring(visible))
+        for layerName, visible in pairs(preset.layers or {}) do
+            table.insert(layerEntries, '        "' .. escapeJsonString(layerName) .. '": ' .. tostring(visible))
         end
         result = result .. table.concat(layerEntries, ",\n") .. "\n"
 
-        result = result .. "    }\n"
-        result = result .. "  }"
-        if i < #presets then
+        result = result .. "      }\n"
+        result = result .. "    }"
+        if i < #data.presets then
             result = result .. ","
         end
         result = result .. "\n"
     end
-    result = result .. "]"
+
+    result = result .. "  ]\n"
+    result = result .. "}"
     return result
 end
 
--- Simple JSON decoder for presets
+-- Simple JSON decoder for sprite data
 local function decodeJSON(jsonStr)
-    local presets = {}
+    local data = {
+        outputDir = "",
+        presets = {}
+    }
+
     jsonStr = jsonStr:gsub("[\n\r\t]", " ")
 
-    for presetStr in jsonStr:gmatch("{[^{}]*{[^{}]*}[^{}]*}") do
+    -- Extract outputDir
+    local outputDir = jsonStr:match('"outputDir"%s*:%s*"([^"]*)"')
+    if outputDir then
+        data.outputDir = outputDir:gsub("\\\\", "\\"):gsub('\\"', '"')
+    end
+
+    -- Extract presets
+    for presetStr in jsonStr:gmatch('{%s*"name"[^{}]*{[^{}]*}[^{}]*}') do
         local preset = {
             name = "",
             exportName = "",
@@ -101,10 +154,10 @@ local function decodeJSON(jsonStr)
             end
         end
 
-        table.insert(presets, preset)
+        table.insert(data.presets, preset)
     end
 
-    return presets
+    return data
 end
 
 -- Get auto-save JSON path for sprite
@@ -117,57 +170,67 @@ local function getAutoSavePath(sprite)
     return nil
 end
 
--- Get presets for current sprite (with auto-load from JSON if preferences empty)
-local function getPresetsForSprite(sprite)
+-- Get data for current sprite (with auto-load from JSON if preferences empty)
+local function getDataForSprite(sprite)
     if not sprite or not sprite.filename or sprite.filename == "" then
-        return {}
+        return { presets = {}, outputDir = "" }
     end
-    local prefs = plugin.preferences
-    prefs.spritePresets = prefs.spritePresets or {}
 
-    -- If no presets in preferences, try to load from JSON file
-    if not prefs.spritePresets[sprite.filename] or #prefs.spritePresets[sprite.filename] == 0 then
+    local prefs = plugin.preferences
+    prefs.spriteData = prefs.spriteData or {}
+
+    -- If no data in preferences, try to load from JSON file
+    if not prefs.spriteData[sprite.filename] then
         local autoSavePath = getAutoSavePath(sprite)
         if autoSavePath then
             local file = io.open(autoSavePath, "r")
             if file then
                 local content = file:read("*all")
                 file:close()
-                local loadedPresets = decodeJSON(content)
-                if #loadedPresets > 0 then
-                    prefs.spritePresets[sprite.filename] = loadedPresets
+                local loadedData = decodeJSON(content)
+                if loadedData and (#loadedData.presets > 0 or loadedData.outputDir ~= "") then
+                    -- Sanitize presets to match current sprite layers
+                    loadedData.presets = sanitizePresets(sprite, loadedData.presets)
+                    prefs.spriteData[sprite.filename] = loadedData
                 end
             end
         end
     end
 
-    prefs.spritePresets[sprite.filename] = prefs.spritePresets[sprite.filename] or {}
-    return prefs.spritePresets[sprite.filename]
+    prefs.spriteData[sprite.filename] = prefs.spriteData[sprite.filename] or { presets = {}, outputDir = "" }
+
+    -- Always sanitize when returning (in case layers changed)
+    if #prefs.spriteData[sprite.filename].presets > 0 then
+        prefs.spriteData[sprite.filename].presets = sanitizePresets(sprite, prefs.spriteData[sprite.filename].presets)
+    end
+
+    return prefs.spriteData[sprite.filename]
 end
 
--- Save presets for current sprite (also auto-saves to JSON)
-local function savePresetsForSprite(sprite, presets)
+-- Save data for current sprite (also auto-saves to JSON)
+local function saveDataForSprite(sprite, data)
     if not sprite or not sprite.filename or sprite.filename == "" then
         return
     end
+
     local prefs = plugin.preferences
-    prefs.spritePresets = prefs.spritePresets or {}
-    prefs.spritePresets[sprite.filename] = presets
+    prefs.spriteData = prefs.spriteData or {}
+    prefs.spriteData[sprite.filename] = data
 
     -- Auto-save to JSON file
     local autoSavePath = getAutoSavePath(sprite)
-    if autoSavePath and #presets > 0 then
+    if autoSavePath and (#data.presets > 0 or (data.outputDir and data.outputDir ~= "")) then
         local file = io.open(autoSavePath, "w")
         if file then
-            file:write(encodeJSON(presets))
+            file:write(encodeJSON(data))
             file:close()
         end
     end
 end
 
 -- Export presets to JSON file (manual)
-local function exportPresetsToFile(sprite, presets)
-    if #presets == 0 then
+local function exportPresetsToFile(sprite, data)
+    if #data.presets == 0 then
         app.alert("No presets to export!")
         return
     end
@@ -191,7 +254,7 @@ local function exportPresetsToFile(sprite, presets)
     if dlg.data.ok and dlg.data.exportPath and dlg.data.exportPath ~= "" then
         local file = io.open(dlg.data.exportPath, "w")
         if file then
-            file:write(encodeJSON(presets))
+            file:write(encodeJSON(data))
             file:close()
             app.alert("Presets exported to:\n" .. dlg.data.exportPath)
         else
@@ -222,10 +285,12 @@ local function importPresetsFromFile(sprite)
             local content = file:read("*all")
             file:close()
 
-            local importedPresets = decodeJSON(content)
-            if #importedPresets > 0 then
-                savePresetsForSprite(sprite, importedPresets)
-                app.alert("Imported " .. #importedPresets .. " preset(s)!")
+            local importedData = decodeJSON(content)
+            if #importedData.presets > 0 then
+                -- Sanitize presets to match current sprite layers
+                importedData.presets = sanitizePresets(sprite, importedData.presets)
+                saveDataForSprite(sprite, importedData)
+                app.alert("Imported " .. #importedData.presets .. " preset(s)!")
                 return true
             else
                 app.alert("No valid presets found in file!")
@@ -337,7 +402,8 @@ local function showPresetManager()
         return
     end
 
-    local presets = getPresetsForSprite(sprite)
+    local data = getDataForSprite(sprite)
+    local presets = data.presets
 
     local function refreshDialog()
         showPresetManager()
@@ -383,12 +449,16 @@ local function showPresetManager()
     dlg:separator{ text = "Export Images" }
 
     local spriteDir = sprite.filename:match("^(.*[/\\])")
+    local savedOutputDir = data.outputDir
+    if not savedOutputDir or savedOutputDir == "" then
+        savedOutputDir = spriteDir or ""
+    end
 
     dlg:file{
         id = "outputDir",
         label = "Output Folder:",
         save = false,
-        filename = spriteDir or "",
+        filename = savedOutputDir,
         filetypes = {}
     }
 
@@ -401,21 +471,27 @@ local function showPresetManager()
 
     dlg:show()
 
-    local data = dlg.data
+    local dlgData = dlg.data
 
-    if data.addPreset then
+    -- Save outputDir if changed
+    if dlgData.outputDir and dlgData.outputDir ~= "" and dlgData.outputDir ~= data.outputDir then
+        data.outputDir = dlgData.outputDir
+        saveDataForSprite(sprite, data)
+    end
+
+    if dlgData.addPreset then
         local newPreset = showPresetEditor(sprite, { name = "", exportName = "", layers = {} }, function(preset)
             table.insert(presets, preset)
-            savePresetsForSprite(sprite, presets)
+            saveDataForSprite(sprite, data)
         end)
         if newPreset then refreshDialog() end
         return
     end
 
-    if data.editPreset and data.selectedPreset then
+    if dlgData.editPreset and dlgData.selectedPreset then
         local selectedIndex = nil
         for i, preset in ipairs(presets) do
-            if (preset.name or ("Preset " .. i)) == data.selectedPreset then
+            if (preset.name or ("Preset " .. i)) == dlgData.selectedPreset then
                 selectedIndex = i
                 break
             end
@@ -424,36 +500,36 @@ local function showPresetManager()
         if selectedIndex then
             local editedPreset = showPresetEditor(sprite, presets[selectedIndex], function(preset)
                 presets[selectedIndex] = preset
-                savePresetsForSprite(sprite, presets)
+                saveDataForSprite(sprite, data)
             end)
             if editedPreset then refreshDialog() end
         end
         return
     end
 
-    if data.deletePreset and data.selectedPreset then
+    if dlgData.deletePreset and dlgData.selectedPreset then
         local result = app.alert{
             title = "Confirm Delete",
-            text = "Delete preset '" .. data.selectedPreset .. "'?",
+            text = "Delete preset '" .. dlgData.selectedPreset .. "'?",
             buttons = { "Yes", "No" }
         }
 
         if result == 1 then
             for i, preset in ipairs(presets) do
-                if (preset.name or ("Preset " .. i)) == data.selectedPreset then
+                if (preset.name or ("Preset " .. i)) == dlgData.selectedPreset then
                     table.remove(presets, i)
                     break
                 end
             end
-            savePresetsForSprite(sprite, presets)
+            saveDataForSprite(sprite, data)
             refreshDialog()
         end
         return
     end
 
-    if data.previewPreset and data.selectedPreset then
+    if dlgData.previewPreset and dlgData.selectedPreset then
         for i, preset in ipairs(presets) do
-            if (preset.name or ("Preset " .. i)) == data.selectedPreset then
+            if (preset.name or ("Preset " .. i)) == dlgData.selectedPreset then
                 applyPresetVisibility(sprite, preset)
                 app.refresh()
                 break
@@ -462,13 +538,16 @@ local function showPresetManager()
         return
     end
 
-    if data.exportAll then
-        local outputDir = data.outputDir
+    if dlgData.exportAll then
+        local outputDir = dlgData.outputDir
         if not outputDir or outputDir == "" then
             outputDir = spriteDir
         end
 
         if outputDir then
+            -- Save the outputDir
+            data.outputDir = outputDir
+            saveDataForSprite(sprite, data)
             exportAllPresets(sprite, presets, outputDir)
         else
             app.alert("Please select an output folder!")
@@ -476,15 +555,18 @@ local function showPresetManager()
         return
     end
 
-    if data.exportSelected and data.selectedPreset then
-        local outputDir = data.outputDir
+    if dlgData.exportSelected and dlgData.selectedPreset then
+        local outputDir = dlgData.outputDir
         if not outputDir or outputDir == "" then
             outputDir = spriteDir
         end
 
         if outputDir then
+            -- Save the outputDir
+            data.outputDir = outputDir
+            saveDataForSprite(sprite, data)
             for i, preset in ipairs(presets) do
-                if (preset.name or ("Preset " .. i)) == data.selectedPreset then
+                if (preset.name or ("Preset " .. i)) == dlgData.selectedPreset then
                     exportAllPresets(sprite, { preset }, outputDir)
                     break
                 end
@@ -495,15 +577,15 @@ local function showPresetManager()
         return
     end
 
-    if data.importPresets then
+    if dlgData.importPresets then
         if importPresetsFromFile(sprite) then
             refreshDialog()
         end
         return
     end
 
-    if data.exportPresets then
-        exportPresetsToFile(sprite, presets)
+    if dlgData.exportPresets then
+        exportPresetsToFile(sprite, data)
         return
     end
 end
@@ -522,17 +604,21 @@ local function quickExportAll()
         return
     end
 
-    local presets = getPresetsForSprite(sprite)
+    local data = getDataForSprite(sprite)
+    local presets = data.presets
 
     if #presets == 0 then
         app.alert("No presets defined! Use 'Layer Export Presets > Manage Presets' to create presets first.")
         return
     end
 
-    local spriteDir = sprite.filename:match("^(.*[/\\])")
+    local outputDir = data.outputDir
+    if not outputDir or outputDir == "" then
+        outputDir = sprite.filename:match("^(.*[/\\])")
+    end
 
-    if spriteDir then
-        exportAllPresets(sprite, presets, spriteDir)
+    if outputDir then
+        exportAllPresets(sprite, presets, outputDir)
     else
         app.alert("Could not determine output directory!")
     end
@@ -543,7 +629,7 @@ function init(p)
     plugin = p
 
     plugin.preferences = plugin.preferences or {}
-    plugin.preferences.spritePresets = plugin.preferences.spritePresets or {}
+    plugin.preferences.spriteData = plugin.preferences.spriteData or {}
 
     plugin:newMenuGroup{
         id = "layer_export_presets_menu",

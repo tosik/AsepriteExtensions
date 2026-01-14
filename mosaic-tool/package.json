@@ -1,0 +1,17 @@
+{
+  "name": "mosaic-tool",
+  "displayName": "Mosaic Tool",
+  "description": "Apply mosaic (pixelate) effect to selected pixels.",
+  "version": "1.0.0",
+  "author": {
+    "name": "tosik"
+  },
+  "publisher": "tosik",
+  "license": "MIT",
+  "categories": ["Scripts"],
+  "contributes": {
+    "scripts": [
+      { "path": "./main.lua" }
+    ]
+  }
+}

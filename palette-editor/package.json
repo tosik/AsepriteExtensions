@@ -1,0 +1,17 @@
+{
+  "name": "palette-editor",
+  "displayName": "Palette Editor",
+  "description": "Edit indexed palette colors with live preview.",
+  "version": "1.0.0",
+  "author": {
+    "name": "tosik"
+  },
+  "publisher": "tosik",
+  "license": "MIT",
+  "categories": ["Scripts"],
+  "contributes": {
+    "scripts": [
+      { "path": "./main.lua" }
+    ]
+  }
+}

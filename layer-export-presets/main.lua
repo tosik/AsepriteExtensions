@@ -454,12 +454,33 @@ local function showPresetManager()
         savedOutputDir = spriteDir or ""
     end
 
-    dlg:file{
+    dlg:entry{
         id = "outputDir",
         label = "Output Folder:",
-        save = false,
-        filename = savedOutputDir,
-        filetypes = {}
+        text = savedOutputDir
+    }
+    dlg:button{
+        id = "browseFolder",
+        text = "Browse...",
+        onclick = function()
+            local browseDlg = Dialog("Select Output Folder")
+            browseDlg:file{
+                id = "file",
+                label = "Select any file in target folder:",
+                open = true,
+                filename = savedOutputDir
+            }
+            browseDlg:button{ id = "ok", text = "OK" }
+            browseDlg:button{ id = "cancel", text = "Cancel" }
+            browseDlg:show()
+            if browseDlg.data.ok and browseDlg.data.file then
+                local dir = browseDlg.data.file:match("^(.*[/\\])")
+                if dir then
+                    dlg:modify{ id = "outputDir", text = dir }
+                    savedOutputDir = dir
+                end
+            end
+        end
     }
 
     dlg:newrow()
